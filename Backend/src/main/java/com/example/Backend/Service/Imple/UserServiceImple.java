@@ -1,12 +1,16 @@
 package com.example.Backend.Service.Imple;
 
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -14,24 +18,25 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 
-import com.example.Backend.Model.Rol;
-import com.example.Backend.Model.UserEntity;
-import com.example.Backend.Repository.UserRepository;
-import com.example.Backend.Service.RolService;
-import com.example.Backend.Service.UserService;
+import com.example.Backend.DTO.AlertDTO;
 import com.example.Backend.DTO.JwtResponseDto;
 import com.example.Backend.DTO.LoginDto;
 import com.example.Backend.DTO.RegisterDto;
 import com.example.Backend.DTO.UserDTO;
 import com.example.Backend.Exceptions.ConflictException;
-import com.example.Backend.Security.JwtGenerator;
 import com.example.Backend.Exceptions.JwtAuthenticationException;
 import com.example.Backend.Exceptions.NotFoundException;
 import com.example.Backend.Model.Alert;
+import com.example.Backend.Model.Rol;
+import com.example.Backend.Model.UserEntity;
 import com.example.Backend.Repository.AlertRepository;
-import com.example.Backend.DTO.AlertDTO;
-import java.time.LocalDateTime;
+import com.example.Backend.Repository.UserRepository;
+import com.example.Backend.Security.JwtGenerator;
+import com.example.Backend.Service.RolService;
+import com.example.Backend.Service.UserService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Service
 public class UserServiceImple implements UserService{
@@ -48,6 +53,10 @@ public class UserServiceImple implements UserService{
     private PasswordEncoder passwordEncoder;
     @Autowired
     private AlertRepository alertRepository;
+    @Autowired
+    private RestTemplate restTemplate;
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @Override
     public UserDTO register(RegisterDto registerDto) {
@@ -187,6 +196,47 @@ public class UserServiceImple implements UserService{
         userRepository.deleteById(id);
     }
 
+    /**
+     * Envía una alerta a la función Azure cuando se actualizan datos de usuarios
+     * @param alertDTO Objeto que contiene la información de la alerta
+     */
+    private void sendAlertToFunction(AlertDTO alertDTO) {
+        try {
+            // URL de la función Azure (debe ser reemplazada con la URL real)
+            String functionUrl = "YOUR_AZURE_FUNCTION_URL";
+            
+            // Configurar headers para la petición HTTP
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            
+            // Crear el cuerpo de la petición con la alerta
+            HttpEntity<String> request = new HttpEntity<>(
+                objectMapper.writeValueAsString(alertDTO),
+                headers
+            );
+            
+            // Enviar la petición POST a la función Azure
+            ResponseEntity<String> response = restTemplate.postForEntity(
+                functionUrl,
+                request,
+                String.class
+            );
+            
+            // Verificar si la petición fue exitosa
+            if (!response.getStatusCode().is2xxSuccessful()) {
+                throw new RuntimeException("Error al enviar la alerta a la función Azure");
+            }
+        } catch (Exception e) {
+            // Registrar el error pero no interrumpir el flujo principal
+            System.err.println("Error al enviar alerta a la función Azure: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Actualiza los datos de un cliente y genera una alerta si hay cambios
+     * @param userDTO Objeto con los nuevos datos del cliente
+     * @return AlertDTO con la información de la alerta generada
+     */
     @Override
     public AlertDTO updateClient(UserDTO userDTO) {
         System.out.println("Intentando actualizar cliente: " + userDTO.getEmail());
@@ -232,12 +282,19 @@ public class UserServiceImple implements UserService{
             alert.setRead(false);
             Alert savedAlert = alertRepository.save(alert);
 
-            return convertToAlertDTO(savedAlert);
+            AlertDTO alertDTO = convertToAlertDTO(savedAlert);
+            sendAlertToFunction(alertDTO);
+            return alertDTO;
         }
 
         return null;
     }
 
+    /**
+     * Actualiza los datos de un empleado y genera una alerta si hay cambios
+     * @param userDTO Objeto con los nuevos datos del empleado
+     * @return AlertDTO con la información de la alerta generada
+     */
     @Override
     public AlertDTO updateEmployee(UserDTO userDTO) {
         UserEntity user = userRepository.findByEmail(userDTO.getEmail())
@@ -277,7 +334,9 @@ public class UserServiceImple implements UserService{
             alert.setRead(false);
             Alert savedAlert = alertRepository.save(alert);
 
-            return convertToAlertDTO(savedAlert);
+            AlertDTO alertDTO = convertToAlertDTO(savedAlert);
+            sendAlertToFunction(alertDTO);
+            return alertDTO;
         }
 
         return null;
@@ -310,7 +369,11 @@ public class UserServiceImple implements UserService{
         alertRepository.save(alert);
     }
 
-    // Método auxiliar para convertir Alert a AlertDTO
+    /**
+     * Convierte un objeto Alert a AlertDTO para su transmisión
+     * @param alert Objeto Alert a convertir
+     * @return AlertDTO con la información convertida
+     */
     private AlertDTO convertToAlertDTO(Alert alert) {
         AlertDTO alertDTO = new AlertDTO();
         alertDTO.setId(alert.getId());
