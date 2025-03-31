@@ -30,6 +30,7 @@ public class AuthController {
     @Autowired
     private RolService rolService;
     
+
     @Autowired
     private JwtGenerator jwtGenerator;
 
@@ -40,11 +41,17 @@ public class AuthController {
     }
     
 
-    @PostMapping("/register")
+    @PostMapping("/register/cliente")
     public ResponseEntity<String> register(@RequestBody RegisterDto registerDto) {
         userService.register(registerDto);
 
         return new ResponseEntity<>("User register success!", HttpStatus.CREATED);
+    }
+
+    @PostMapping("/register/employee")
+    public ResponseEntity<String> registerEmployee(@RequestBody RegisterDto registerDto) {
+        userService.registerEmployee(registerDto);
+        return new ResponseEntity<>("Employee registered successfully!", HttpStatus.CREATED);
     }
 
     @PostMapping("/refresh-token")

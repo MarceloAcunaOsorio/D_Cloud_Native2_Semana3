@@ -64,6 +64,31 @@ public class UserServiceImple implements UserService{
         userDto.setRoles(user.getRoles());
         return userDto;
     }
+
+    @Override
+    public UserDTO registerEmployee(RegisterDto registerDto) {
+        if (userRepository.existsByEmail(registerDto.getEmail())){
+            throw new ConflictException("El usuario existe!");
+        }
+        UserEntity user = new UserEntity();
+        user.setUsername(registerDto.getUsername());
+        user.setPassword(passwordEncoder.encode(registerDto.getPassword()));
+        user.setEmail(registerDto.getEmail());
+
+        Rol rol = rolService.findByname("EMPLOYEE").orElseThrow(()-> new NotFoundException("Rol no encontrado!"));
+        Set<Rol> roles = new HashSet<>();
+        roles.add(rol);
+        user.setRoles(roles);
+        userRepository.save(user);
+
+        UserDTO userDto = new UserDTO();
+        userDto.setUsername(user.getUsername());
+        userDto.setPassword(user.getPassword());
+        userDto.setEmail(user.getEmail());
+        userDto.setRoles(user.getRoles());
+        return userDto;
+    }
+
     @Override
     public JwtResponseDto login(LoginDto loginDto) {
         try {

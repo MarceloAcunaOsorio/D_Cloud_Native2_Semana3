@@ -12,4 +12,5 @@ public interface  UserService {
     public UserDTO register(RegisterDto registerDto);
     public JwtResponseDto login(LoginDto loginDto);
     UserDTO getLoguedUser(HttpHeaders headers);
+    public UserDTO registerEmployee(RegisterDto registerDto);
 }
