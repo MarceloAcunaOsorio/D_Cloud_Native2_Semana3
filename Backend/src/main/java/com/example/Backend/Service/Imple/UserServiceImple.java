@@ -1,7 +1,9 @@
 package com.example.Backend.Service.Imple;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -121,4 +123,62 @@ public class UserServiceImple implements UserService{
         userDto.setRoles(user.getRoles());
         return userDto;
     }
+
+    @Override
+    public List<UserDTO> getAllUsers() {
+        List<UserEntity> users = userRepository.findAll();
+        return users.stream()
+            .map(user -> {
+                UserDTO userDto = new UserDTO();
+                userDto.setEmail(user.getEmail());
+                userDto.setUsername(user.getUsername());
+                userDto.setRoles(user.getRoles());
+                return userDto;
+            })
+            .collect(Collectors.toList());
+    }
+
+    @Override
+    public UserDTO getUserById(Long id) {
+        UserEntity user = userRepository.findById(id)
+            .orElseThrow(() -> new NotFoundException("Usuario no encontrado con ID: " + id));
+        
+        UserDTO userDto = new UserDTO();
+        userDto.setEmail(user.getEmail());
+        userDto.setUsername(user.getUsername());
+        userDto.setRoles(user.getRoles());
+        return userDto;
+    }
+
+    @Override
+    public UserDTO updateUser(UserDTO userDTO) {
+        UserEntity user = userRepository.findByEmail(userDTO.getEmail())
+            .orElseThrow(() -> new NotFoundException("Usuario no encontrado"));
+        
+        user.setUsername(userDTO.getUsername());
+        if (userDTO.getPassword() != null && !userDTO.getPassword().isEmpty()) {
+            user.setPassword(passwordEncoder.encode(userDTO.getPassword()));
+        }
+        
+        if (userDTO.getRoles() != null && !userDTO.getRoles().isEmpty()) {
+            user.setRoles(userDTO.getRoles());
+        }
+        
+        UserEntity updatedUser = userRepository.save(user);
+        
+        UserDTO updatedUserDto = new UserDTO();
+        updatedUserDto.setEmail(updatedUser.getEmail());
+        updatedUserDto.setUsername(updatedUser.getUsername());
+        updatedUserDto.setRoles(updatedUser.getRoles());
+        return updatedUserDto;
+    }
+
+    @Override
+    public void deleteUser(Long id) {
+        if (!userRepository.existsById(id)) {
+            throw new NotFoundException("Usuario no encontrado con ID: " + id);
+        }
+        userRepository.deleteById(id);
+    }
+
 }
