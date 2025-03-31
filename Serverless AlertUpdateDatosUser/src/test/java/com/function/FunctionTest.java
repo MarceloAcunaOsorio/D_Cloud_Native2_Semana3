@@ -1,16 +1,21 @@
 package com.function;
 
-import com.microsoft.azure.functions.*;
+import java.util.Optional;
+import java.util.logging.Logger;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import org.junit.jupiter.api.Test;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
-import java.util.*;
-import java.util.logging.Logger;
-
-import org.junit.jupiter.api.Test;
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+import com.microsoft.azure.functions.ExecutionContext;
+import com.microsoft.azure.functions.HttpRequestMessage;
+import com.microsoft.azure.functions.HttpResponseMessage;
+import com.microsoft.azure.functions.HttpStatus;
 
 
 /**
@@ -18,20 +23,23 @@ import static org.mockito.Mockito.*;
  */
 public class FunctionTest {
     /**
-     * Unit test for HttpTriggerJava method.
+     * Unit test for AlertNotification method.
      */
     @Test
-    public void testHttpTriggerJava() throws Exception {
+    public void testAlertNotification() throws Exception {
         // Setup
         @SuppressWarnings("unchecked")
         final HttpRequestMessage<Optional<String>> req = mock(HttpRequestMessage.class);
 
-        final Map<String, String> queryParams = new HashMap<>();
-        queryParams.put("name", "Azure");
-        doReturn(queryParams).when(req).getQueryParameters();
-
-        final Optional<String> queryBody = Optional.empty();
-        doReturn(queryBody).when(req).getBody();
+        // Simular el cuerpo JSON de la alerta
+        String jsonBody = "{" +
+            "\"message\": \"Actualización de usuario\"," +
+            "\"userEmail\": \"test@test.com\"," +
+            "\"modificationType\": \"UPDATE_CLIENT\"," +
+            "\"userRole\": \"USER\"" +
+        "}";
+        final Optional<String> requestBody = Optional.of(jsonBody);
+        doReturn(requestBody).when(req).getBody();
 
         doAnswer(new Answer<HttpResponseMessage.Builder>() {
             @Override

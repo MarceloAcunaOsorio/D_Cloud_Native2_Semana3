@@ -33,44 +33,66 @@ public class Function {
                 HttpRequestMessage<Optional<String>> request,
             final ExecutionContext context) {
         
-        context.getLogger().info("Procesando solicitud de notificación de alerta.");
+        context.getLogger().info("Iniciando procesamiento de alerta...");
 
         try {
-            // Obtener el cuerpo de la petición
+            // Obtener y validar el cuerpo de la petición
             String requestBody = request.getBody().orElse("");
+            context.getLogger().info("Cuerpo de la petición recibido: " + requestBody);
+
             if (requestBody.isEmpty()) {
+                context.getLogger().warning("Cuerpo de la petición vacío");
                 return request.createResponseBuilder(HttpStatus.BAD_REQUEST)
                     .body("Por favor proporcione un cuerpo de petición con información de alerta")
                     .build();
             }
 
-            // Convertir el JSON recibido a un objeto
-            JsonObject alertData = gson.fromJson(requestBody, JsonObject.class);
-            
-            // Extraer la información de la alerta
-            String message = alertData.get("message").getAsString();
-            String userEmail = alertData.get("userEmail").getAsString();
-            String modificationType = alertData.get("modificationType").getAsString();
-            String userRole = alertData.get("userRole").getAsString();
+            try {
+                // Intentar parsear el JSON y mostrar su contenido
+                JsonObject alertData = gson.fromJson(requestBody, JsonObject.class);
+                context.getLogger().info("JSON parseado correctamente: " + alertData.toString());
+                
+                // Extraer y validar la información requerida
+                String message = alertData.has("message") ? alertData.get("message").getAsString() : "No message";
+                String userEmail = alertData.has("userEmail") ? alertData.get("userEmail").getAsString() : "No email";
+                String modificationType = alertData.has("modificationType") ? alertData.get("modificationType").getAsString() : "No type";
+                String userRole = alertData.has("userRole") ? alertData.get("userRole").getAsString() : "No role";
 
-            // Registrar la información de la alerta
-            context.getLogger().info(String.format(
-                "Alerta recibida - Tipo: %s, Usuario: %s (%s), Mensaje: %s",
-                modificationType, userEmail, userRole, message
-            ));
+                // Crear respuesta formateada
+                String responseMessage = String.format(
+                    "Alerta procesada exitosamente:\n" +
+                    "--------------------------------\n" +
+                    "Mensaje: %s\n" +
+                    "Usuario: %s\n" +
+                    "Tipo de modificación: %s\n" +
+                    "Rol del usuario: %s\n" +
+                    "--------------------------------\n" +
+                    "Estado: Procesado correctamente\n" +
+                    "Fecha y hora: %s",
+                    message,
+                    userEmail,
+                    modificationType,
+                    userRole,
+                    java.time.LocalDateTime.now()
+                );
 
-            // Aquí se pueden agregar acciones adicionales como:
-            // - Enviar correos electrónicos
-            // - Almacenar en una base de datos
-            // - Activar otros servicios
-            // - etc.
+                // Registrar la información detallada
+                context.getLogger().info("Datos procesados de la alerta:");
+                context.getLogger().info(responseMessage);
 
-            return request.createResponseBuilder(HttpStatus.OK)
-                .body("Notificación de alerta procesada exitosamente")
-                .build();
+                return request.createResponseBuilder(HttpStatus.OK)
+                    .body(responseMessage)
+                    .build();
+
+            } catch (Exception jsonError) {
+                context.getLogger().severe("Error al parsear JSON: " + jsonError.getMessage());
+                return request.createResponseBuilder(HttpStatus.BAD_REQUEST)
+                    .body("Error al procesar el JSON: " + jsonError.getMessage())
+                    .build();
+            }
 
         } catch (Exception e) {
-            context.getLogger().severe("Error al procesar la notificación de alerta: " + e.getMessage());
+            context.getLogger().severe("Error general: " + e.getMessage());
             return request.createResponseBuilder(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body("Error al procesar la notificación de alerta: " + e.getMessage())
                 .build();

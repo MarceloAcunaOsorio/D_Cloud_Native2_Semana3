@@ -7,6 +7,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -57,6 +58,8 @@ public class UserServiceImple implements UserService{
     private RestTemplate restTemplate;
     @Autowired
     private ObjectMapper objectMapper;
+    @Value("${azure.functions.alert-url}")
+    private String alertFunctionUrl;
 
     @Override
     public UserDTO register(RegisterDto registerDto) {
@@ -196,47 +199,41 @@ public class UserServiceImple implements UserService{
         userRepository.deleteById(id);
     }
 
-    /**
-     * Envía una alerta a la función Azure cuando se actualizan datos de usuarios
-     * @param alertDTO Objeto que contiene la información de la alerta
-     */
     private void sendAlertToFunction(AlertDTO alertDTO) {
         try {
-            // URL de la función Azure (debe ser reemplazada con la URL real)
-            String functionUrl = "YOUR_AZURE_FUNCTION_URL";
-            
-            // Configurar headers para la petición HTTP
+            // Crear un objeto simple con los datos necesarios
+            String jsonBody = String.format(
+                "{\"message\":\"%s\",\"userEmail\":\"%s\",\"modificationType\":\"%s\",\"userRole\":\"%s\"}",
+                alertDTO.getMessage(),
+                alertDTO.getUserEmail(),
+                alertDTO.getModificationType(),
+                alertDTO.getUserRole()
+            );
+
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
             
-            // Crear el cuerpo de la petición con la alerta
-            HttpEntity<String> request = new HttpEntity<>(
-                objectMapper.writeValueAsString(alertDTO),
-                headers
-            );
+            // Usar directamente el String JSON como cuerpo
+            HttpEntity<String> request = new HttpEntity<>(jsonBody, headers);
             
-            // Enviar la petición POST a la función Azure
+            System.out.println("Enviando alerta al trigger:");
+            System.out.println("URL: " + alertFunctionUrl);
+            System.out.println("Datos: " + jsonBody);
+
             ResponseEntity<String> response = restTemplate.postForEntity(
-                functionUrl,
+                alertFunctionUrl,
                 request,
                 String.class
             );
             
-            // Verificar si la petición fue exitosa
-            if (!response.getStatusCode().is2xxSuccessful()) {
-                throw new RuntimeException("Error al enviar la alerta a la función Azure");
-            }
+            System.out.println("Respuesta del trigger: " + response.getStatusCode());
+
         } catch (Exception e) {
-            // Registrar el error pero no interrumpir el flujo principal
-            System.err.println("Error al enviar alerta a la función Azure: " + e.getMessage());
+            System.err.println("Error al enviar alerta: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
-    /**
-     * Actualiza los datos de un cliente y genera una alerta si hay cambios
-     * @param userDTO Objeto con los nuevos datos del cliente
-     * @return AlertDTO con la información de la alerta generada
-     */
     @Override
     public AlertDTO updateClient(UserDTO userDTO) {
         System.out.println("Intentando actualizar cliente: " + userDTO.getEmail());
@@ -248,17 +245,19 @@ public class UserServiceImple implements UserService{
             .map(Rol::getName)
             .collect(Collectors.joining(", ")));
 
-        // Verificar si el usuario tiene rol de CLIENT
         if (!user.getRoles().stream().anyMatch(rol -> rol.getName().equals("USER"))) {
             throw new ConflictException("El usuario no es un cliente");
         }
 
-        // Actualizar datos del usuario
         boolean hasChanges = false;
         StringBuilder changes = new StringBuilder();
 
         if (!user.getUsername().equals(userDTO.getUsername())) {
-            changes.append("Nombre de usuario actualizado. ");
+            changes.append("Nombre de usuario actualizado de '")
+                  .append(user.getUsername())
+                  .append("' a '")
+                  .append(userDTO.getUsername())
+                  .append("'. ");
             user.setUsername(userDTO.getUsername());
             hasChanges = true;
         }
@@ -269,43 +268,36 @@ public class UserServiceImple implements UserService{
             hasChanges = true;
         }
 
-        // Guardar cambios del usuario
-        userRepository.save(user);
-
-        // Crear alerta si hubo cambios
         if (hasChanges) {
+            userRepository.save(user);
+            
             Alert alert = new Alert();
             alert.setUser(user);
-            alert.setMessage("Actualización de cliente: " + changes.toString());
+            alert.setMessage(changes.toString().trim());
             alert.setModificationType("UPDATE_CLIENT");
             alert.setCreatedAt(LocalDateTime.now());
             alert.setRead(false);
+            
             Alert savedAlert = alertRepository.save(alert);
-
             AlertDTO alertDTO = convertToAlertDTO(savedAlert);
+            
             sendAlertToFunction(alertDTO);
+            
             return alertDTO;
         }
 
         return null;
     }
 
-    /**
-     * Actualiza los datos de un empleado y genera una alerta si hay cambios
-     * @param userDTO Objeto con los nuevos datos del empleado
-     * @return AlertDTO con la información de la alerta generada
-     */
     @Override
     public AlertDTO updateEmployee(UserDTO userDTO) {
         UserEntity user = userRepository.findByEmail(userDTO.getEmail())
             .orElseThrow(() -> new NotFoundException("Empleado no encontrado"));
         
-        // Verificar si el usuario tiene rol de EMPLOYEE
         if (!user.getRoles().stream().anyMatch(rol -> rol.getName().equals("EMPLOYEE"))) {
             throw new ConflictException("El usuario no es un empleado");
         }
 
-        // Actualizar datos del usuario
         boolean hasChanges = false;
         StringBuilder changes = new StringBuilder();
 
@@ -321,21 +313,21 @@ public class UserServiceImple implements UserService{
             hasChanges = true;
         }
 
-        // Guardar cambios del usuario
-        userRepository.save(user);
-
-        // Crear alerta si hubo cambios
         if (hasChanges) {
+            userRepository.save(user);
+            
             Alert alert = new Alert();
             alert.setUser(user);
             alert.setMessage("Actualización de empleado: " + changes.toString());
             alert.setModificationType("UPDATE_EMPLOYEE");
             alert.setCreatedAt(LocalDateTime.now());
             alert.setRead(false);
+            
             Alert savedAlert = alertRepository.save(alert);
-
             AlertDTO alertDTO = convertToAlertDTO(savedAlert);
+            
             sendAlertToFunction(alertDTO);
+            
             return alertDTO;
         }
 
@@ -369,11 +361,6 @@ public class UserServiceImple implements UserService{
         alertRepository.save(alert);
     }
 
-    /**
-     * Convierte un objeto Alert a AlertDTO para su transmisión
-     * @param alert Objeto Alert a convertir
-     * @return AlertDTO con la información convertida
-     */
     private AlertDTO convertToAlertDTO(Alert alert) {
         AlertDTO alertDTO = new AlertDTO();
         alertDTO.setId(alert.getId());
