@@ -25,6 +25,7 @@ import com.example.Backend.DTO.AlertDTO;
 import com.example.Backend.DTO.JwtResponseDto;
 import com.example.Backend.DTO.LoginDto;
 import com.example.Backend.DTO.RegisterDto;
+import com.example.Backend.DTO.UserConfirmationDTO;
 import com.example.Backend.DTO.UserDTO;
 import com.example.Backend.Exceptions.ConflictException;
 import com.example.Backend.Exceptions.JwtAuthenticationException;
@@ -60,6 +61,8 @@ public class UserServiceImple implements UserService{
     private ObjectMapper objectMapper;
     @Value("${azure.functions.alert-url}")
     private String alertFunctionUrl;
+    @Value("${azure.functions.confirmation-url}")
+    private String confirmationFunctionUrl;
 
     @Override
     public UserDTO register(RegisterDto registerDto) {
@@ -373,6 +376,83 @@ public class UserServiceImple implements UserService{
         alertDTO.setCreatedAt(alert.getCreatedAt());
         alertDTO.setRead(alert.isRead());
         return alertDTO;
+    }
+
+    @Override
+    public UserConfirmationDTO registerWithConfirmation(RegisterDto registerDto) {
+        // Primero registramos el usuario normalmente
+        UserDTO userDTO = register(registerDto);
+        
+        // Creamos y enviamos la confirmación
+        UserConfirmationDTO confirmationDTO = new UserConfirmationDTO();
+        confirmationDTO.setUsername(userDTO.getUsername());
+        confirmationDTO.setEmail(userDTO.getEmail());
+        confirmationDTO.setRole("USER");
+        confirmationDTO.setCreatedAt(LocalDateTime.now());
+        
+        // Enviar la confirmación
+        sendConfirmationMessage(confirmationDTO);
+        
+        return confirmationDTO;
+    }
+
+    @Override
+    public UserConfirmationDTO registerEmployeeWithConfirmation(RegisterDto registerDto) {
+        // Primero registramos el empleado normalmente
+        UserDTO userDTO = registerEmployee(registerDto);
+        
+        // Creamos y enviamos la confirmación
+        UserConfirmationDTO confirmationDTO = new UserConfirmationDTO();
+        confirmationDTO.setUsername(userDTO.getUsername());
+        confirmationDTO.setEmail(userDTO.getEmail());
+        confirmationDTO.setRole("EMPLOYEE");
+        confirmationDTO.setCreatedAt(LocalDateTime.now());
+        
+        // Enviar la confirmación
+        sendConfirmationMessage(confirmationDTO);
+        
+        return confirmationDTO;
+    }
+
+    @Override
+    public void sendConfirmationMessage(UserConfirmationDTO confirmationDTO) {
+        try {
+            // Crear el JSON con los datos necesarios
+            String jsonBody = String.format(
+                "{\"username\":\"%s\",\"email\":\"%s\",\"role\":\"%s\"}",
+                confirmationDTO.getUsername(),
+                confirmationDTO.getEmail(),
+                confirmationDTO.getRole()
+            );
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            
+            // Crear la petición HTTP
+            HttpEntity<String> request = new HttpEntity<>(jsonBody, headers);
+            
+            System.out.println("Enviando confirmación de creación de usuario:");
+            System.out.println("URL: " + confirmationFunctionUrl);
+            System.out.println("Datos: " + jsonBody);
+
+            // Enviar la petición al trigger
+            ResponseEntity<String> response = restTemplate.postForEntity(
+                confirmationFunctionUrl,
+                request,
+                String.class
+            );
+            
+            // Guardar la respuesta en el DTO
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                confirmationDTO.setConfirmationMessage(response.getBody());
+            }
+            
+            System.out.println("Respuesta del trigger: " + response.getStatusCode());
+
+        } catch (Exception e) {
+            System.err.println("Error al enviar confirmación: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 
 }

@@ -19,6 +19,7 @@ import com.example.Backend.DTO.LoginDto;
 import com.example.Backend.DTO.RegisterDto;
 import com.example.Backend.DTO.UserDTO;
 import com.example.Backend.DTO.AlertDTO;
+import com.example.Backend.DTO.UserConfirmationDTO;
 import com.example.Backend.Security.JwtGenerator;
 import com.example.Backend.Service.RolService;
 import com.example.Backend.Service.UserService;
@@ -47,16 +48,15 @@ public class AuthController {
     
 
     @PostMapping("/register/cliente")
-    public ResponseEntity<String> register(@RequestBody RegisterDto registerDto) {
-        userService.register(registerDto);
-
-        return new ResponseEntity<>("User register success!", HttpStatus.CREATED);
+    public ResponseEntity<UserConfirmationDTO> register(@RequestBody RegisterDto registerDto) {
+        UserConfirmationDTO confirmation = userService.registerWithConfirmation(registerDto);
+        return new ResponseEntity<>(confirmation, HttpStatus.CREATED);
     }
 
     @PostMapping("/register/employee")
-    public ResponseEntity<String> registerEmployee(@RequestBody RegisterDto registerDto) {
-        userService.registerEmployee(registerDto);
-        return new ResponseEntity<>("Employee registered successfully!", HttpStatus.CREATED);
+    public ResponseEntity<UserConfirmationDTO> registerEmployee(@RequestBody RegisterDto registerDto) {
+        UserConfirmationDTO confirmation = userService.registerEmployeeWithConfirmation(registerDto);
+        return new ResponseEntity<>(confirmation, HttpStatus.CREATED);
     }
 
     @PostMapping("/refresh-token")

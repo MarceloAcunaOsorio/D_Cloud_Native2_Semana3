@@ -9,8 +9,12 @@ import com.example.Backend.DTO.LoginDto;
 import com.example.Backend.DTO.RegisterDto;
 import com.example.Backend.DTO.UserDTO;
 import com.example.Backend.DTO.AlertDTO;
+import com.example.Backend.DTO.UserConfirmationDTO;
 
 public interface  UserService {
+    
+    //registrar cliente con confirmación
+    UserConfirmationDTO registerWithConfirmation(RegisterDto registerDto);
     
     //registrar cliente
     UserDTO register(RegisterDto registerDto);
@@ -20,6 +24,9 @@ public interface  UserService {
     
     //obtener usuario logueado
     UserDTO getLoguedUser(HttpHeaders headers);
+
+    //registrar empleado con confirmación
+    UserConfirmationDTO registerEmployeeWithConfirmation(RegisterDto registerDto);
 
     //registrar empleado
     UserDTO registerEmployee(RegisterDto registerDto);
@@ -50,4 +57,7 @@ public interface  UserService {
 
     //marcar alerta como leída
     void markAlertAsRead(Long alertId);
+
+    //enviar mensaje de confirmación al trigger
+    void sendConfirmationMessage(UserConfirmationDTO confirmationDTO);
 }
