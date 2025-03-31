@@ -8,17 +8,21 @@ import com.example.Backend.DTO.JwtResponseDto;
 import com.example.Backend.DTO.LoginDto;
 import com.example.Backend.DTO.RegisterDto;
 import com.example.Backend.DTO.UserDTO;
+import com.example.Backend.DTO.AlertDTO;
 
 public interface  UserService {
     
     //registrar cliente
-    public UserDTO register(RegisterDto registerDto);
+    UserDTO register(RegisterDto registerDto);
+    
     //login
-    public JwtResponseDto login(LoginDto loginDto);
+    JwtResponseDto login(LoginDto loginDto);
+    
     //obtener usuario logueado
     UserDTO getLoguedUser(HttpHeaders headers);
+
     //registrar empleado
-    public UserDTO registerEmployee(RegisterDto registerDto);
+    UserDTO registerEmployee(RegisterDto registerDto);
 
     //obtener todos los usuarios
     List<UserDTO> getAllUsers();
@@ -31,4 +35,19 @@ public interface  UserService {
 
     //eliminar usuario
     void deleteUser(Long id);
+
+    //actualizar cliente con alerta
+    AlertDTO updateClient(UserDTO userDTO);
+
+    //actualizar empleado con alerta
+    AlertDTO updateEmployee(UserDTO userDTO);
+
+    //obtener historial de alertas por usuario
+    List<AlertDTO> getUserAlerts(Long userId);
+
+    //obtener todas las alertas
+    List<AlertDTO> getAllAlerts();
+
+    //marcar alerta como leída
+    void markAlertAsRead(Long alertId);
 }
