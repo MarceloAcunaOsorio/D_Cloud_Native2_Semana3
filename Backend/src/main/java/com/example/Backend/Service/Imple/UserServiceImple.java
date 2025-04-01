@@ -40,35 +40,42 @@ import com.example.Backend.Service.RolService;
 import com.example.Backend.Service.UserService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+// Clase principal que implementa la lógica de negocio para usuarios
 @Service
-public class UserServiceImple implements UserService{
+public class UserServiceImple implements UserService {
     
+    // Inyección de dependencias necesarias para el servicio
     @Autowired
-    private UserRepository userRepository;
+    private UserRepository userRepository;        // Para operaciones CRUD de usuarios
     @Autowired
-    private RolService rolService;
+    private RolService rolService;               // Maneja los roles de usuarios
     @Autowired
-    private AuthenticationManager authenticationManager;
+    private AuthenticationManager authenticationManager;  // Maneja autenticación
     @Autowired
-    private JwtGenerator jwtGenerator;
+    private JwtGenerator jwtGenerator;           // Genera tokens JWT
     @Autowired
-    private PasswordEncoder passwordEncoder;
+    private PasswordEncoder passwordEncoder;      // Encripta contraseñas
     @Autowired
-    private AlertRepository alertRepository;
+    private AlertRepository alertRepository;      // Para operaciones CRUD de alertas
     @Autowired
-    private RestTemplate restTemplate;
+    private RestTemplate restTemplate;           // Para hacer llamadas HTTP
     @Autowired
-    private ObjectMapper objectMapper;
-    @Value("${azure.functions.alert-url}")
-    private String alertFunctionUrl;
-    @Value("${azure.functions.confirmation-url}")
-    private String confirmationFunctionUrl;
+    private ObjectMapper objectMapper;           // Convierte objetos a/desde JSON
 
+    // URLs configuradas para las funciones Azure
+    @Value("${azure.functions.alert-url}")
+    private String alertFunctionUrl;             // URL para enviar alertas
+    @Value("${azure.functions.confirmation-url}")
+    private String confirmationFunctionUrl;      // URL para enviar confirmaciones
+
+    // Método para registrar un nuevo usuario cliente
     @Override
     public UserDTO register(RegisterDto registerDto) {
+        // Verifica si el email ya existe
         if (userRepository.existsByEmail(registerDto.getEmail())){
             throw new ConflictException("El usuario existe!");
         }
+        // Crea y configura el nuevo usuario
         UserEntity user = new UserEntity();
         user.setUsername(registerDto.getUsername());
         user.setPassword(passwordEncoder.encode(registerDto.getPassword()));
@@ -88,8 +95,10 @@ public class UserServiceImple implements UserService{
         return userDto;
     }
 
+    // Método para registrar un nuevo empleado
     @Override
     public UserDTO registerEmployee(RegisterDto registerDto) {
+        // Similar al registro de cliente pero con rol EMPLOYEE
         if (userRepository.existsByEmail(registerDto.getEmail())){
             throw new ConflictException("El usuario existe!");
         }
@@ -112,8 +121,10 @@ public class UserServiceImple implements UserService{
         return userDto;
     }
 
+    // Método para autenticar usuarios y generar token JWT
     @Override
     public JwtResponseDto login(LoginDto loginDto) {
+        // Intenta autenticar al usuario
         try {
             Authentication authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(
@@ -202,9 +213,10 @@ public class UserServiceImple implements UserService{
         userRepository.deleteById(id);
     }
 
+    // Método privado para enviar alertas al trigger de Azure
     private void sendAlertToFunction(AlertDTO alertDTO) {
         try {
-            // Crear un objeto simple con los datos necesarios
+            // Crea el JSON para la alerta
             String jsonBody = String.format(
                 "{\"message\":\"%s\",\"userEmail\":\"%s\",\"modificationType\":\"%s\",\"userRole\":\"%s\"}",
                 alertDTO.getMessage(),
@@ -237,6 +249,7 @@ public class UserServiceImple implements UserService{
         }
     }
 
+    // Método para actualizar datos de un cliente y generar alerta
     @Override
     public AlertDTO updateClient(UserDTO userDTO) {
         System.out.println("Intentando actualizar cliente: " + userDTO.getEmail());
@@ -364,7 +377,9 @@ public class UserServiceImple implements UserService{
         alertRepository.save(alert);
     }
 
+    // Método para convertir Alert a AlertDTO
     private AlertDTO convertToAlertDTO(Alert alert) {
+        // Convierte una entidad Alert a su DTO correspondiente
         AlertDTO alertDTO = new AlertDTO();
         alertDTO.setId(alert.getId());
         alertDTO.setMessage(alert.getMessage());
@@ -378,12 +393,13 @@ public class UserServiceImple implements UserService{
         return alertDTO;
     }
 
+    // Método para registrar cliente con mensaje de confirmación
     @Override
     public UserConfirmationDTO registerWithConfirmation(RegisterDto registerDto) {
-        // Primero registramos el usuario normalmente
+        // Registra el usuario y envía confirmación
         UserDTO userDTO = register(registerDto);
         
-        // Creamos y enviamos la confirmación
+        // Prepara el DTO de confirmación
         UserConfirmationDTO confirmationDTO = new UserConfirmationDTO();
         confirmationDTO.setUsername(userDTO.getUsername());
         confirmationDTO.setEmail(userDTO.getEmail());
@@ -414,10 +430,11 @@ public class UserServiceImple implements UserService{
         return confirmationDTO;
     }
 
+    // Método para enviar mensaje de confirmación al trigger
     @Override
     public void sendConfirmationMessage(UserConfirmationDTO confirmationDTO) {
         try {
-            // Crear el JSON con los datos necesarios
+            // Prepara y envía el mensaje al trigger Azure
             String jsonBody = String.format(
                 "{\"username\":\"%s\",\"email\":\"%s\",\"role\":\"%s\"}",
                 confirmationDTO.getUsername(),
